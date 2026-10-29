@@ -1,9 +1,21 @@
-__pycache__/
-*.pyc
-.venv/
-venv/
+# Secrets: never in git
 .env
+.env.*
+!.env.example*
+*.pem
+*.key
+
+# Data and build output
 data/
 *.db
 *.db-journal
+__pycache__/
+.pytest_cache/
+*.pyc
+.venv/
+venv/
+node_modules/
+
+# GOB's own folder in its copy of the project (settings, memory, its copy of the skills)
 .a0proj/
+.claude/settings.local.json

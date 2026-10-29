@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# test — run every test (pytest, in the project's own environment); the pre-commit hook runs this
+# before each commit. Keep it fast: no network, no database.
+cd "$(dirname "$0")"
+exec uv run --quiet pytest -q

@@ -1,0 +1,11 @@
+# docker compose up --build: the service on http://localhost:8100
+services:
+  api:
+    build: .
+    restart: unless-stopped
+    ports: ["8100:8000"]
+    env_file: [{path: .env, required: false}]
+    volumes: ["./data:/srv/data"]  # the SQLite store and archetype meta stay on the host, outside git
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s

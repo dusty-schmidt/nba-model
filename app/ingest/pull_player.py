@@ -1,9 +1,9 @@
 """Pull one player's game logs into the store.
-Usage: /opt/venv/bin/python pull_player.py "<name or espn id>" [season...]
+Usage: uv run python -m app.ingest.pull_player "<name or espn id>" [season...]
 Season = ending year: 2026 -> 2025-26, 2027 -> 2026-27. Default: 2026 2027."""
 import sys
-from espn_client import search_player, get_gamelog
-import store
+from app import store
+from app.ingest.espn_client import get_gamelog, search_player
 
 # ESPN 'names' field -> our columns; composite 'a-b' fields split on the dash
 SPLIT = {"fieldGoalsMade-fieldGoalsAttempted": ("fgm", "fga"),

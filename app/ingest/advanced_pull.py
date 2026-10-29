@@ -13,15 +13,15 @@ Tables (snapshot replace per season, idempotent re-runs):
   player_advanced(season, espn_id, ...)   espn_id = OFFICIAL NBA PlayerID
   player_defend(season, espn_id, category, ...)
 
-Usage: /opt/venv/bin/python advanced_pull.py
+Usage: uv run --group ingest python -m app.ingest.advanced_pull
 """
 import json
-from pathlib import Path
 
-from nba_official import fetch_many, get_browser_page
-import store
+from app import store
+from app.config import settings
+from app.ingest.nba_official import fetch_many, get_browser_page
 
-RAW = Path("data/raw")
+RAW = settings.data_dir / "raw"
 
 FULL = (
     "College=&Conference=&Country=&Division=&DraftPick=&DraftYear="

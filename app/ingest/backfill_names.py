@@ -4,10 +4,10 @@ The first bulk run stored 'id NNNN' because commonallplayers' name field is
 DISPLAY_FIRST_LAST, not PLAYER. Parser fixed in nba_official.py; this script
 re-pulls the roster list through the bridge and upserts names.
 
-Usage: /opt/venv/bin/python backfill_names.py
+Usage: uv run --group ingest python -m app.ingest.backfill_names
 """
-import store
-from nba_official import get_browser_page, pull_all_player_ids
+from app import store
+from app.ingest.nba_official import get_browser_page, pull_all_player_ids
 
 
 def main():

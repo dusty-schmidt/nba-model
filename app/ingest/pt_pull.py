@@ -15,15 +15,15 @@ columns instead; player_defend keeps only the Overall snapshots.
 Table: player_tracking(season, espn_id, ...) - one row per
 player-season, columns picked from each measure response.
 
-Usage: /opt/venv/bin/python pt_pull.py
+Usage: uv run --group ingest python -m app.ingest.pt_pull
 """
 import json
-from pathlib import Path
 
-from nba_official import fetch_many, get_browser_page
-import store
+from app import store
+from app.config import settings
+from app.ingest.nba_official import fetch_many, get_browser_page
 
-RAW = Path("data/raw")
+RAW = settings.data_dir / "raw"
 
 PARAMS = (
     "College=&Conference=&Country=&DateFrom=&DateTo=&Division="

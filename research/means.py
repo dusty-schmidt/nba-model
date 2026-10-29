@@ -8,7 +8,7 @@ import collections
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 
-import store
+from app import store
 
 STATS = ("pts", "reb", "ast", "fg3m")
 MIN_PRIOR = 10

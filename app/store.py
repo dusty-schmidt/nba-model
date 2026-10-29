@@ -1,8 +1,7 @@
 """SQLite layer for the NBA model. Idempotent upserts, one db file."""
 import sqlite3
-from pathlib import Path
 
-DB = Path(__file__).parent / "data" / "nba.db"
+from app.config import settings
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS players (
@@ -50,9 +49,14 @@ CREATE INDEX IF NOT EXISTS idx_team_games_date ON team_games(game_date);
 """
 
 
+def db_path():
+    """The database file, read from settings each time so tests can point it elsewhere."""
+    return settings.data_dir / "nba.db"
+
+
 def connect():
-    DB.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB)
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(db_path())
     cols = [r[1] for r in con.execute("PRAGMA table_info(game_logs)").fetchall()]
     if cols and "source" not in cols:
         # migrate pre-source table: rebuild with new schema, keep espn rows

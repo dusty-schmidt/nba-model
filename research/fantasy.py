@@ -11,7 +11,9 @@ import math
 import sqlite3
 import sys
 
-DB = "data/nba.db"
+from app import store
+
+DB = store.db_path()
 
 # Default league scoring (assumed, not verified against a specific league).
 SCORING = {"pts": 1.0, "reb": 1.2, "ast": 1.5, "stl": 3.0, "blk": 3.0, "tov": -1.0}

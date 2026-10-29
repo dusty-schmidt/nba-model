@@ -1,39 +1,34 @@
-# NBA projection model — data layer
+# nba-model research
 
-Set up 2026-10-28. Purpose: player stat projections for props betting and fantasy.
+The findings behind the model, newest sections last, from the build on 2026-10-28. What the
+project is and how to run it: `AGENTS.md`.
 
 ## Data source decision
 
 stats.nba.com and cdn.nba.com are **Akamai-blocked from this container's IP** (connection hangs
 past 60s / bare 403 — verified twice with full browser headers). ESPN's public API answers in
-~0.2s with full JSON, so it is the data backbone. `nba_api` remains installed in /opt/venv if
-egress ever changes.
+~0.2s with full JSON, so it is the data backbone.
 
 ## Files
 
-- `espn_client.py` — ESPN client: `search_player()` (v2 search, numeric id from uid `~a:NNN`)
-  and `get_gamelog(id, season)`. Season = ending year: 2026 -> 2025-26, 2027 -> 2026-27.
-- `store.py` — SQLite at `data/nba.db`. Tables: `players`, `game_logs` (PK espn_id+game_id,
-  idempotent upserts). Stat columns: minutes, fgm/fga, fg3m/fg3a, ftm/fta, reb, ast, blk, stl,
-  tov, pf, pts + game context (date, home/away, opponent, result, scores).
-- `pull_player.py` — CLI: `python pull_player.py "<name or id>" [season...]` (default 2026 2027).
-  Parses ESPN `names`->`stats` positional arrays; splits composite `a-b` fields; MM:SS minutes.
-- `advanced_pull.py` — official Advanced (USG/TS/ratings, 569+582 rows) + Defend Overall
-  snapshots via bridge. `player_advanced` + `player_defend` tables.
-- `pt_pull.py` — the tracking-measure family via `leaguedashptstats?PtMeasureType=...`
-  (Drives, Defense, Passing, CatchShoot, PullUpShot, Rebounding, SpeedDistance,
-  Efficiency). `player_tracking` table, 8 measures x 2 seasons merged per player-season.
-- `nba_official.py` — the official pull via the headless Chrome bridge (real page context; a
-  plain requests call is Akamai-blocked). Modes for players-bulk, teams-bulk, advanced, tracking.
-- `backfill_names.py` — re-pulls player names with proper diacritics through the bridge.
+The service's own code is described in `AGENTS.md`. The experiments here each answer one question
+and print their numbers; run any of them with `uv run python -m research.<name>`.
+
 - `baseline.py` — the walk-forward yardstick: eight dumb methods, roll20/dec20 on 254 games.
 - `opptest.py` — the decisive opponent test. Rejected opponent and archetype adjustments.
 - `probs.py` — first calibration pass: four variance models scored on Brier/logloss.
 - `means.py` — does a learned mean beat roll20? Monthly walk-forward, out-of-sample only.
-- `projections.py` — the combined engine; this is where the shipping strategy was chosen.
-- `live_probs.py` — live projection + over/under probabilities for a player's next game.
+- `projections.py` — the combined engine; this is where the shipping strategy was chosen
+  (it ships as `app/projections/service.py`).
+- `archetype_value.py` — does archetype membership predict next-season impact? (+0.004 R2: barely.)
+- `fantasy.py` — fantasy points per minute and game-to-game volatility, by player.
 - `validate.py` — ESPN vs official cross-check (68 shared games, 0 mismatches).
-- `dashboard.py` + `static/index.html` — the mobile UI and its JSON API.
+
+The pulls that fill the store are in `app/ingest/`: `espn_client.py` + `pull_player.py` (ESPN),
+`nba_official.py` (the headless Chrome bridge to NBA.com), `advanced_pull.py` (official
+Advanced + Defend Overall: `player_advanced`, `player_defend`), `pt_pull.py` (the tracking
+measures: `player_tracking`) and `backfill_names.py` (names with proper diacritics). The store
+itself is `app/store.py`; archetypes are `app/archetypes/service.py`.
 
 Deleted 2026-10-28: six `probe_*.py` one-off endpoint probes (their findings live in the
 Advanced stats layer section below) and `opponent_model.py` (superseded by `opptest.py`, which
@@ -44,11 +39,11 @@ is the version that produced the rejection evidence).
 - End-to-end pull: Doncic (espn 3945274), 65 rows 2025-26 + 4 rows 2026-27, 0% nulls on all key
   columns, season avg 33.0 ppg plausible.
 - Gamelog `season` param returns full prior season history.
-- **Official NBA.com bridge works** (`nba_official.py`): framework chromium (Chrome 149) +
+- **Official NBA.com bridge works** (`app/ingest/nba_official.py`): framework chromium (Chrome 149) +
   persistent profile (data/chrome-profile) passes Akamai; python requests and the downloaded
   headless_shell do NOT. Doncic official id 1629029, source-verified via commonallplayers with
   NFD diacritic normalization. Jokic (203999, 138 rows) also in store from first bridge run.
-- **Cross-source validation PASSED** (`validate.py 3945274 1629029`): 68 shared games, 0
+- **Cross-source validation PASSED** (`research/validate.py 3945274 1629029`): 68 shared games, 0
   mismatches on pts/minutes/reb/ast/shooting splits. ESPN dates are UTC tipoffs — converted to
   America/New_York before joining (official stores local game date).
 - NBA.com season leaders corroborate: Doncic 36.0 ppg, 144 total (28+23+52+41), 52-high — all
@@ -110,7 +105,7 @@ silhouette (solid) and GMM BIC inverted (dashed, fully derivable at
 Auto pick = lowest GMM BIC, interior at k=10 for the 2025-26 reference season.
 
 `POST /api/archetypes/optimize` runs the full scan and assigns via GMM labels
-(~1.6s). `archetypes.py optimize` does the same from the CLI. Manual k remains
+(~1.6s). `python -m app.archetypes.service optimize` does the same from the CLI. Manual k remains
 as an override under the dashboard's "manual override" foldout.
 
 ## Cluster names, preview and apply
@@ -131,23 +126,21 @@ with names and top members, then applies it. Manual k-means stays under
 
 ## Dashboard (2026-10-28)
 
-Flask JSON API + single-file mobile UI (no CDNs, no build step).
+A JSON API plus a single-file mobile UI (no CDNs, no build step); how to run it is in `AGENTS.md`.
+Built on Flask, moved to the project starter's FastAPI layout on 2026-10-29 with every response
+unchanged.
 
-- Run: `/opt/venv/bin/python dashboard.py` (binds 127.0.0.1:8099)
-- Phone/tailnet: https://gob-main.tail621cf5.ts.net (tailscale serve proxy, tailnet-only)
 - Tabs: Players (league leaders + search + per-player cards with per-36, form sparkline, roll20 projection),
   Archetypes (cluster cards, PCA player map, interactive k-scan + re-cluster),
   Project (roll20 projections), Model (data coverage, baseline yardstick, roadmap)
-- Endpoints: /api/state, /api/players?q=, /api/player/<id>, /api/leaders?stat=&season=,
-  /api/archetypes, /api/archetypes/scatter, POST /api/archetypes/scan, POST /api/archetypes/assign {k}
 - k-scan recheck (341 qualified players): only k=4 (sil .228, ARI .968) and k=5 (sil .220, ARI .975) are
   seed-stable; k>=7 seed-unstable. k=5 assigned: 3-and-D wings, scoring guards, hub bigs, rim protectors, defensive wings.
 
 ## Probability layer (validated 2026-10-28)
 
-`live_probs.py` + `/api/prob/<pid>` + the Project tab's over/under card.
+`app/projections/service.py` + `/api/prob/<pid>` + the Project tab's over/under card.
 
-Strategy is the walk-forward winner from `projections.py`:
+Strategy is the walk-forward winner from `research/projections.py`:
 
 | layer | choice | evidence |
 |---|---|---|

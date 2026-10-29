@@ -3,7 +3,8 @@
 stats.nba.com Akamai-blocks python TLS fingerprints but accepts fetches made
 from inside a real nba.com page context (verified 2026-10-28). Uses the
 framework chromium build + persistent profile (data/chrome-profile), which
-pass Akamai; the downloaded headless_shell does not.
+pass Akamai; the downloaded headless_shell does not. CHROME_PATH (app/config.py)
+names the build.
 
 Modes:
   player <official_id>...   pull specific players, 3 seasons each
@@ -14,20 +15,20 @@ Modes:
 Cache: data/raw/gamelog_{pid}_{season}.json, team_{tid}_{season}.json — reruns
 skip cached files, so interrupted bulk runs resume for free.
 
-Usage: /opt/venv/bin/python nba_official.py <mode> [args]
+Usage: uv run --group ingest python -m app.ingest.nba_official <mode> [args]
 """
 import json
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 import random
 
 from playwright.sync_api import sync_playwright
 
-import store
+from app import store
+from app.config import settings
 
-RAW = Path(__file__).parent / "data" / "raw"
+RAW = settings.data_dir / "raw"
 SITE = "https://www.nba.com/stats/players"
 BASE = "https://stats.nba.com"
 HDRS = {"Accept": "application/json, text/plain, */*"}
@@ -90,11 +91,10 @@ def fetch_many(page, paths):
 
 def get_browser_page():
     pw = sync_playwright().start()
-    exe = Path("/a0/tmp/playwright/chromium-1228/chrome-linux64/chrome")
-    profile = Path(__file__).parent / "data" / "chrome-profile"
+    profile = settings.data_dir / "chrome-profile"
     browser = pw.chromium.launch_persistent_context(
         str(profile),
-        executable_path=str(exe),
+        executable_path=settings.chrome_path or None,
         headless=True,
         args=[
             "--no-sandbox",

@@ -1,6 +1,6 @@
 """Live over/under probabilities for a player's next game.
 
-Implements the strategy validated walk-forward in projections.py:
+Implements the strategy validated walk-forward in research/projections.py:
 
   mean    gradient boosting on strictly-prior-game features for
           pts/reb/ast; plain 20-game rolling mean for fg3m, where the
@@ -22,7 +22,7 @@ from statistics import NormalDist
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 
-import store
+from app import store
 
 ND = NormalDist()
 WINDOW = 20
@@ -195,6 +195,33 @@ def p_over(mu, sd, line, emp=None):
         return 0.5
     return 1.0 - ND.cdf((line - mu) / sd)
 
+
+
+def next_game(pid):
+    """The API's card: each stat's projection and spread, and P(over) at five lines around it.
+    None if the player has too little history."""
+    con = store.connect()
+    name = con.execute("select name from players where espn_id=?",
+                       (pid,)).fetchone()
+    res = project(con, pid)
+    if res is None:
+        return None
+    out = {"pid": pid, "name": name[0] if name else str(pid),
+           "arch": res["arch"], "games": res["games"], "stats": {}}
+    for stat, d in res["stats"].items():
+        mu, sd = d["proj"], d["sd"]
+        center = round(mu * 2) / 2.0
+        lines = [round(center + off * 0.5, 1) for off in (-2, -1, 0, 1, 2)]
+        out["stats"][stat] = {
+            "proj": _rnd(mu, 2), "sd": _rnd(sd, 2),
+            "lines": [{"line": ln, "p": _rnd(p_over(mu, sd, ln), 3)}
+                      for ln in lines],
+        }
+    return out
+
+
+def _rnd(v, n):
+    return round(v, n) if v is not None else None
 
 if __name__ == "__main__":
     con = store.connect()

@@ -15,7 +15,7 @@ from statistics import NormalDist
 import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 
-import store
+from app import store
 
 STATS = ("pts", "reb", "ast", "fg3m")
 # The learned mean beat roll20 on pts/reb/ast but LOST on fg3m: threes are

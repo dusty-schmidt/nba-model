@@ -2,7 +2,9 @@
 no adjustment and plain overall opponent adjustment, walk-forward?
 u001d additive residual model, two-level shrinkage.
 """
-import collections, store
+import collections
+
+from app import store
 import numpy as np
 
 K_OPP = 200.0

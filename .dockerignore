@@ -1,0 +1,9 @@
+.git
+.venv
+.env
+.agents
+.claude
+.a0proj
+__pycache__
+tests
+data

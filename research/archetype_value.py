@@ -14,7 +14,9 @@ from sklearn.model_selection import KFold, cross_val_predict
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-DB = "data/nba.db"
+from app import store
+
+DB = store.db_path()
 MIN_MINUTES = 500
 
 

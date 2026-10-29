@@ -4,12 +4,14 @@ ESPN stores tipoff timestamps (UTC); official stores the local game date.
 Convert ESPN timestamps to America/New_York dates, join on (date, season),
 compare every core stat on shared games.
 
-Usage: python validate.py <espn_id> <official_id>
+Usage: uv run python -m research.validate <espn_id> <official_id>
 """
 import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import sqlite3
+
+from app import store
 
 ET = ZoneInfo("America/New_York")
 
@@ -24,7 +26,7 @@ def et_date(s):
 
 def main():
     espn_pid, off_pid = int(sys.argv[1]), int(sys.argv[2])
-    con = sqlite3.connect("data/nba.db")
+    con = sqlite3.connect(store.db_path())
     c = con.cursor()
     espn = c.execute(
         "select game_date, season, pts, minutes, reb, ast, fgm, fga, "

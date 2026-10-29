@@ -2,9 +2,9 @@
 
 v4: owner asked for drives-to-the-rim and defensive rate stats so new
 role structure can emerge. Data now in the store:
- player_tracking (pt_pull.py): drives, drive_pts, catch_shoot_pts,
+ player_tracking (app/ingest/pt_pull.py): drives, drive_pts, catch_shoot_pts,
    pull_up_pts, passes_made, def_rim_fga ... per-game tracking averages
- player_advanced (advanced_pull.py): official USG/TS/ratings - usg/ts
+ player_advanced (app/ingest/advanced_pull.py): official USG/TS/ratings - usg/ts
    already computed from box+team joins; ratings are quality, not role.
 
 New mechanism features (how production is assembled):
@@ -32,26 +32,35 @@ Modes:
  optimize        auto k = GMM BIC minimum, assign via GMM labels
  assign <k>      manual k-means at k -> player_archetypes + json
 
-Usage: /opt/venv/bin/python archetypes.py scan|optimize|assign [k]
+Usage: uv run python -m app.archetypes.service scan|optimize|assign [k]
 """
 import json
+import logging
 import sys
-from pathlib import Path
 
 import numpy as np
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import (adjusted_rand_score, calinski_harabasz_score,
     davies_bouldin_score, silhouette_score)
 from sklearn.preprocessing import StandardScaler
 
-import store
+from app import store
+from app.config import settings
+
+log = logging.getLogger(__name__)
 
 REF_SEASON = 2025
 MIN_MINUTES = 200.0
 MIN_GAMES = 10
 K_RANGE = range(4, 13)
 RANDOM_STATE = 42
+def meta_path():
+    """The chosen partition's k, centres and scan tables, beside the store."""
+    return settings.data_dir / "archetypes_2025.json"
+
+
 FEATURES = ["pts36", "reb36", "oreb36", "dreb36", "ast36", "stl36",
     "blk36", "tov36", "fta36", "fg3a36", "atr", "usg", "ts",
     "efg", "ftr", "ast_tov", "3share", "ftm_share", "pm36",
@@ -238,15 +247,14 @@ def persist(con, profs, labels, centers, k, method, scan=None):
         meta["km"], meta["gmm"] = scan
     else:
         old = {}
-        if Path("data/archetypes_2025.json").exists():
+        if meta_path().exists():
             try:
-                old = json.loads(
-                    Path("data/archetypes_2025.json").read_text())
+                old = json.loads(meta_path().read_text())
             except (ValueError, OSError):
                 old = {}
         if "km" in old:  # manual re-cluster keeps last scan valid
             meta["km"], meta["gmm"] = old["km"], old["gmm"]
-    Path("data/archetypes_2025.json").write_text(json.dumps(meta, indent=1))
+    meta_path().write_text(json.dumps(meta, indent=1))
     return {"k": k, "n_players": len(profs), "method": method,
         "clusters": clusters}
 
@@ -388,12 +396,142 @@ def optimize(con, profs, Xz):
         scan=(km_rows, gmm_rows))
 
 
+
+# The API's views. Fitting is slow, so the read views are cached in process; anything that
+# changes the partition clears the cache.
+_cache = {}
+
+
+def _slim(c):
+    return {"arch": c["arch"], "size": c["size"], "avg_min_per_g": c["avg_min_per_g"],
+            "centroid": c["centroid"], "members": c["members"][:10]}
+
+
+def _fitted():
+    con = store.connect()
+    profs = load_profiles(con)
+    return con, profs, scale_profiles(profs)
+
+
+def clusters():
+    """The current partition: each cluster's size, centroid, plain-English name and top members."""
+    if "arch" in _cache:
+        return _cache["arch"]
+    con = store.connect()
+    meta = json.loads(meta_path().read_text())
+    k = meta["k"]
+    rows = con.execute(
+        "select a.arch, a.espn_id, a.ref_minutes, p.name from "
+        "player_archetypes a join players p on p.espn_id=a.espn_id "
+        "order by a.arch, a.ref_minutes desc").fetchall()
+    members = {a: [] for a in range(k)}
+    for (arch_, pid, mins, name) in rows:
+        members.setdefault(arch_, []).append(
+            {"espn_id": pid, "name": name, "minutes": mins})
+    out = []
+    for a in range(k):
+        ms = members.get(a, [])
+        centroid = dict(zip(meta["features"],
+                            [round(c, 2) for c in meta["centers"][a]]))
+        out.append({"arch": a, "size": len(ms), "centroid": centroid,
+                    "top": ms[:10]})
+    try:
+        profs = load_profiles(con)
+        lmap = {r[0]: r[1] for r in con.execute(
+            "select espn_id, arch from player_archetypes")}
+        labels = [lmap.get(p["espn_id"], 0) for p in profs]
+        descs = {d["arch"]: d for d in describe_clusters(
+            con, profs, meta["centers"], labels, k)}
+    except Exception:
+        descs = {}
+        log.exception("describe failed")
+    for c in out:
+        d = descs.get(c["arch"], {})
+        c["name"] = d.get("name", "cluster " + str(c["arch"]))
+        c["desc"] = d.get("desc", "")
+    _cache["arch"] = {"k": k, "clusters": out}
+    return _cache["arch"]
+
+
+def scatter():
+    """Every profiled player on the first two principal components, coloured by archetype."""
+    if "scatter" in _cache:
+        return _cache["scatter"]
+    con, profs, Xz = _fitted()
+    pca = PCA(n_components=2)
+    xy = pca.fit_transform(Xz)
+    labels = {r[0]: r[1] for r in con.execute(
+        "select espn_id, arch from player_archetypes")}
+    names = {r[0]: r[1] for r in con.execute(
+        "select espn_id, name from players")}
+    pts = [{"espn_id": p["espn_id"],
+            "name": names.get(p["espn_id"], str(p["espn_id"])),
+            "x": round(float(x), 3), "y": round(float(y), 3),
+            "arch": labels.get(p["espn_id"]), "minutes": p["minutes"]}
+           for p, (x, y) in zip(profs, xy)]
+    _cache["scatter"] = {
+        "points": pts,
+        "var": [round(float(v), 3) for v in pca.explained_variance_ratio_]}
+    return _cache["scatter"]
+
+
+def fit_tables(deep):
+    """The k-means and GMM fit-index tables; deep adds bootstrap stability (slow)."""
+    key = "scan_deep" if deep else "scan"
+    if key not in _cache:
+        _, _, Xz = _fitted()
+        km_rows, gmm_rows = scan(Xz, stability=deep)
+        _cache[key] = {"km": km_rows, "gmm": gmm_rows}
+    return {"rows": _cache[key]["km"], "gmm": _cache[key]["gmm"]}
+
+
+def quality():
+    """The quality-per-k curves and the auto pick, from the saved meta. None if no scan is saved."""
+    if not meta_path().exists():
+        return None
+    meta = json.loads(meta_path().read_text())
+    km, gmm = meta.get("km"), meta.get("gmm")
+    if not km or not gmm:
+        return None
+    best = min(gmm, key=lambda r: r["bic"])
+    return dict(current_k=meta.get("k"), method=meta.get("method"),
+                auto_k=best["k"], auto_bic=best["bic"], km=km, gmm=gmm)
+
+
+def assign_k(k):
+    con, profs, Xz = _fitted()
+    res = assign(con, profs, Xz, k)
+    _cache.clear()
+    return {"k": res["k"], "n_players": res["n_players"],
+            "clusters": [_slim(c) for c in res["clusters"]]}
+
+
+def optimize_k():
+    con, profs, Xz = _fitted()
+    res = optimize(con, profs, Xz)
+    _cache.clear()
+    return {"k": res["k"], "method": res["method"], "n_players": res["n_players"],
+            "clusters": [_slim(c) for c in res["clusters"]]}
+
+
+def preview_k(k):
+    con, profs, Xz = _fitted()
+    centers, labels = preview(profs, Xz, k)
+    return {"k": k, "clusters": describe_clusters(con, profs, centers, labels, k)}
+
+
+def apply(k):
+    con, profs, Xz = _fitted()
+    res = apply_k(con, profs, Xz, k)
+    _cache.clear()
+    return {"k": res["k"], "method": res["method"]}
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "scan"
     con = store.connect()
     profs = load_profiles(con)
     if not profs:
-        raise SystemExit("no qualified players - run pt_pull.py first")
+        raise SystemExit("no qualified players - run python -m app.ingest.pt_pull first")
     Xz = scale_profiles(profs)
     if mode == "scan":
         km_rows, gmm_rows = scan(Xz)
@@ -406,7 +544,7 @@ def main():
         print(f"\nk-means best silhouette: "
             f"k={max(km_rows, key=lambda r: r['silhouette'])['k']}")
         print(f"GMM BIC minimum: k={best['k']} (BIC {best['bic']})")
-        print("next: archetypes.py assign <k>")
+        print("next: python -m app.archetypes.service assign <k>")
     elif mode == "optimize":
         res = optimize(con, profs, Xz)
         for c in res["clusters"]:

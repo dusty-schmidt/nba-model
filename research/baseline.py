@@ -9,10 +9,12 @@ strictly earlier games (no leakage). Methods:
 
 The winner becomes the yardstick every fancier model must beat.
 
-Usage: /opt/venv/bin/python baseline.py
+Usage: uv run python -m research.baseline
 """
 import math
 import sqlite3
+
+from app import store
 
 STATS = ["pts", "reb", "ast", "stl", "blk", "tov", "fg3m"]
 PLAYERS = [(1629029, "Luka Doncic"), (203999, "Nikola Jokic")]
@@ -113,7 +115,7 @@ def report(name, n_eval, errs, pooled):
 
 
 def main():
-    con = sqlite3.connect("data/nba.db")
+    con = sqlite3.connect(store.db_path())
     pooled = {m: {s: [] for s in ["minutes"] + STATS} for m in METHODS}
     total_games = 0
     for pid, name in PLAYERS:

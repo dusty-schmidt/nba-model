@@ -8,7 +8,7 @@ units of the global sd so every stat is comparable.
 import collections
 import numpy as np
 
-import store
+from app import store
 
 WINDOW = 20
 MIN_PRIOR = 8

@@ -1,0 +1,12 @@
+# The answers this project was started with (lab repos new); don't edit by hand.
+_src_path: /home/ds/lab/projects/toolkit/template
+description: NBA player stat projections for props betting and fantasy
+feature: players
+port: 8100
+project_name: nba-model
+purpose: Pulls NBA box scores and tracking stats (ESPN, and NBA.com through a headless
+    browser) into a SQLite store, groups players into archetypes, and projects each
+    player's next game with over/under probabilities. A mobile dashboard shows players,
+    leaders, archetypes and projections. For the owner's props bets and fantasy picks.
+use_db: false
+use_worker: false
