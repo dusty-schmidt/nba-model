@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# post-commit — print the project's new version, worked out by the lab's `lab version`; never fails
+version=~/lab/tools/version
+[ -x "$version" ] && v=$("$version" -C "$(git rev-parse --show-toplevel)" 2>/dev/null) && printf '\033[2m%s\033[0m\n' "$v"
+exit 0

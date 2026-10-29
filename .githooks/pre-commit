@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# pre-commit — run the project's tests (./test); skip once with: git commit --no-verify
+top="$(git rev-parse --show-toplevel)"
+[ -x "$top/test" ] || exit 0
+exec "$top/test"
