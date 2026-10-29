@@ -11,21 +11,28 @@ them), is in `research/README.md`. Read it before changing the model.
 
 ## Run it
 
-- `docker compose up --build`: the service on http://localhost:8100 (the dashboard at `/`, API
-  docs at `/docs`, health at `/health`). It reads the store from `data/`, mounted into the
-  container.
-- Without Docker: `uv run uvicorn app.main:app --reload --port 8100`.
+- **The live dashboard is always on** at http://mothership:8100 (`~/lab/services/nba-model`): within
+  5 minutes of a push to `main`, it runs the new commit if its tests pass, and keeps the last good
+  one if they don't. So a push is a release; work in progress stays on a branch or unpushed.
+- A dev copy while you work: `uv run uvicorn app.main:app --reload --port 8101`, or
+  `docker compose up --build` (also :8101). The dashboard at `/`, API docs at `/docs`, health at
+  `/health`.
 - Settings come from environment variables (`app/config.py`); `.env.example` lists them. Copy it
   to `.env` (never committed) to change them.
 - `./test` runs the tests (`uv run pytest`).
 
 ## The data
 
-`data/` is never in git: `nba.db` (the SQLite store: players, game logs, teams, advanced,
+The data is never in git: `nba.db` (the SQLite store: players, game logs, teams, advanced,
 tracking, archetypes), `archetypes_2025.json` (the chosen partition), `raw/` (the pull cache, so
-an interrupted pull resumes) and `chrome-profile/` (the browser profile that passes Akamai). The
-only copy is the desk's (`~/lab/projects/nba-model/data`); a new clone starts empty and fills it
-with the pulls.
+an interrupted pull resumes) and `chrome-profile/` (the browser profile that passes Akamai).
+
+There is one copy, the live service's: `~/lab/services/nba-model/data` on mothership, backed up
+hourly with the rest of `/home/ds`. The desk clone's `.env` sets `DATA_DIR` to it, so pulls and
+research read and write the same store the dashboard shows. That means an archetype re-fit from
+a dev server changes the live dashboard too. The live service caches its fitted models in memory,
+so after a pull run `docker restart nba-model-live` to show the new data. Elsewhere (GOB's copy, a
+cloud session) `data/` starts empty.
 
 - **ESPN** is the backbone (fast public JSON): `uv run python -m app.ingest.pull_player "<name or
   espn id>" [season...]`.

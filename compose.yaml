@@ -1,11 +1,14 @@
-# docker compose up --build: the service on http://localhost:8100
+# docker compose up --build: a dev copy of the service on http://localhost:8101 (the live one,
+# always on, is ~/lab/services/nba-model on :8100)
 services:
   api:
     build: .
     restart: unless-stopped
-    ports: ["8100:8000"]
+    ports: ["8101:8000"]
     env_file: [{path: .env, required: false}]
-    volumes: ["./data:/srv/data"]  # the SQLite store and archetype meta stay on the host, outside git
+    environment:
+      DATA_DIR: /srv/data  # inside the container; the host folder is mounted below
+    volumes: ["${DATA_DIR:-./data}:/srv/data"]  # .env's DATA_DIR: the live service's store
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
