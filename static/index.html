@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NBA Model Lab</title>
+<style>
+:root{--bg:#0b0e14;--card:#151a23;--card2:#1c2330;--tx:#e6e9f0;--tx2:#98a2b3;--acc:#f97316;--line:#232b3a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding-bottom:86px}
+header{position:sticky;top:0;background:rgba(11,14,20,.94);backdrop-filter:blur(6px);padding:12px 16px 10px;border-bottom:1px solid var(--line);z-index:5}
+h1{font-size:19px;font-weight:800}#hdr-sub{font-size:12px;color:var(--tx2)}
+main{max-width:760px;margin:0 auto;padding:14px 14px 30px}
+.hidden{display:none!important}
+input[type=search],select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--tx);font-size:16px;margin:6px 0 10px}
+.controls{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+.controls select{width:auto;flex:0 0 70px;margin:0}
+.btn{background:var(--acc);color:#12100d;border:0;border-radius:10px;padding:11px 14px;font-weight:700;font-size:14px}
+.btn.alt{background:var(--card2);color:var(--tx);border:1px solid var(--line)}
+.btn[disabled]{opacity:.5}
+.list .row{display:flex;justify-content:space-between;gap:10px;padding:12px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+.list .row:active{background:var(--card2)}
+.nm{font-weight:600}.sub{color:var(--tx2);font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}
+h3{font-size:13px;margin:16px 0 6px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{color:var(--tx2);text-align:right;font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{text-align:right;padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+.scroll{overflow-x:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px}
+.badge{display:inline-block;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700}
+.back{color:var(--acc);font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px;display:inline-block}
+nav.tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:rgba(11,14,20,.97);backdrop-filter:blur(6px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav.tabs button{flex:1;background:0;border:0;color:var(--tx2);padding:10px 0 8px;font-size:11px;font-weight:700;font-family:inherit}
+nav.tabs button.on{color:var(--acc)}
+nav.tabs button .ic{display:block;font-size:21px;line-height:1.2}
+#scatter{width:100%;height:auto;display:block;background:var(--card);border-radius:12px}
+#scatter-tip{font-size:13px;color:var(--tx2);min-height:20px;padding:6px 2px}
+.note{font-size:12px;color:var(--tx2);margin-top:8px}
+.spark{width:100%;height:64px;display:block}
+.grid{display:grid;gap:10px}
+@media(min-width:640px){.grid{grid-template-columns:1fr 1fr}}
+.archcard{border-top:3px solid var(--ac,#f97316)}
+</style>
+</head>
+<body>
+<header><h1>NBA Model Lab</h1><div id="hdr-sub">loading…</div></header>
+<main>
+<section id="v-players">
+  <div class="card">
+    <div class="nm">League leaders</div>
+    <div class="controls">
+      <select id="ld-stat"><option value="pts">pts</option><option value="reb">reb</option><option value="ast">ast</option><option value="stl">stl</option><option value="blk">blk</option><option value="tov">tov</option><option value="fg3m">3pm</option><option value="minutes">min</option></select>
+      <select id="ld-season"></select>
+      <button id="ld-btn" class="btn alt">load</button>
+    </div>
+    <div id="ldlist" class="list"></div>
+  </div>
+  <input id="psearch" type="search" placeholder="Search players…" autocomplete="off">
+  <div id="plist" class="list"></div>
+  <div id="pdetail"></div>
+</section>
+<section id="v-arch" class="hidden">
+  <div class="card">
+    <div class="nm">cluster-count accuracy</div>
+    <div class="sub">how well the archetype model fits, per number of clusters · higher = better</div>
+    <div id="quality-chart" style="margin-top:10px"></div>
+    <div id="quality-note" class="note">loading…</div>
+    <div class="controls" style="margin-top:10px">
+      <button id="btn-auto" class="btn">auto-optimize</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="nm">preview a different cluster count</div>
+    <div class="sub">fits a fresh model without saving — apply when it reads right</div>
+    <div class="controls" style="margin-top:10px">
+      <button id="k-down" class="btn alt">−</button>
+      <div id="k-prev-k" style="font-size:20px;font-weight:800;min-width:44px;text-align:center">–</div>
+      <button id="k-up" class="btn alt">+</button>
+      <button id="k-apply" class="btn">apply this k</button>
+    </div>
+    <div id="k-preview-out"></div>
+  </div>
+  <details id="manual-controls" style="margin:10px 0">
+    <summary class="sub" style="cursor:pointer">manual override</summary>
+    <div class="controls">
+      <label class="sub" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="deep-chk">deep (stability)</label>
+      <button id="btn-scan" class="btn alt">run k-scan</button>
+      <select id="k-sel"><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select>
+      <button id="btn-assign" class="btn alt">re-cluster</button>
+    </div>
+  </details>
+  <div id="scan-out"></div>
+  <div id="arch-grid" class="grid"></div>
+  <h3>Player map (PCA, per-36 profiles)</h3>
+  <svg id="scatter" viewBox="-3.2 -3.2 6.4 6.4"></svg>
+  <div id="scatter-tip">tap a dot</div>
+</section>
+<section id="v-project" class="hidden">
+  <input id="pjsearch" type="search" placeholder="Pick a player to project…" autocomplete="off">
+  <div id="pjlist" class="list"></div>
+  <div id="pjdetail"></div>
+</section>
+<section id="v-model" class="hidden"><div id="model-info">loading…</div></section>
+</main>
+<nav class="tabs">
+  <button data-v="players" class="on"><span class="ic">🏀</span>Players</button>
+  <button data-v="arch"><span class="ic">🧩</span>Archetypes</button>
+  <button data-v="project"><span class="ic">🎯</span>Project</button>
+  <button data-v="model"><span class="ic">⚙️</span>Model</button>
+</nav>
+<script>
+const $=s=>document.querySelector(s);
+const PAL=["#f97316","#38bdf8","#4ade80","#f472b6","#a78bfa","#facc15","#fb7185","#34d399","#60a5fa","#c084fc","#fbbf24","#f87171"];
+const STATS=["minutes","pts","reb","ast","stl","blk","tov","fg3m"];
+let ARCH_LOADED=false;
+async function api(p,o){const r=await fetch(p,o);const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||r.status);return j}
+function show(v){['players','arch','project','model'].forEach(x=>{$('#v-'+x).classList.toggle('hidden',x!==v);document.querySelector('nav.tabs button[data-v="'+x+'"]').classList.toggle('on',x===v)});if(v==='arch'&&!ARCH_LOADED){ARCH_LOADED=true;loadArch()}if(v==='model')loadModel()}
+document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>show(b.dataset.v));
+function spark(vals){if(!vals.length)return'';const w=Math.max(vals.length*12,120),h=64,mx=Math.max(...vals),mn=Math.min(...vals),rg=(mx-mn)||1;const pts=vals.map((v,i)=>((i*(w/((vals.length-1)||1))).toFixed(1))+','+((h-8-((v-mn)/rg)*(h-16)).toFixed(1))).join(' ');return '<svg class="spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="#f97316" stroke-width="2.5"/></svg><div class="note">last '+vals.length+' games, pts · min '+mn+' · max '+mx+'</div>'}
+let deb;
+$('#psearch').oninput=e=>{clearTimeout(deb);deb=setTimeout(()=>searchP(e.target.value.trim(),'plist'),250)};
+$('#pjsearch').oninput=e=>{clearTimeout(deb);deb=setTimeout(()=>searchP(e.target.value.trim(),'pjlist'),250)};
+async function searchP(q,el){if(!q){$('#'+el).innerHTML='';return}const rows=await api('/api/players?q='+encodeURIComponent(q));$('#'+el).innerHTML=rows.map(r=>'<div class="row" data-id="'+r.espn_id+'"><div><div class="nm">'+r.name+'</div><div class="sub">'+r.g+' games in store</div></div><div class="sub">'+r.ppg+' ppg</div></div>').join('')||'<div class="sub" style="padding:12px">no matches</div>'}
+$('#plist').onclick=e=>{const r=e.target.closest('.row');if(r){$('#plist').innerHTML='';$('#psearch').value='';showPlayer(r.dataset.id)}};
+$('#pjlist').onclick=e=>{const r=e.target.closest('.row');if(r){$('#pjlist').innerHTML='';$('#pjsearch').value='';projectPlayer(r.dataset.id)}};
+ let ldLoaded=false;
+ async function loadLeaders(){const s=await api('/api/state');if(!ldLoaded){$('#ld-season').innerHTML=s.seasons.map(x=>'<option>'+x+'</option>').join('');$('#ld-season').value=s.seasons[s.seasons.length-1];ldLoaded=true}
+ const sel=$('#ld-stat');const r=await api('/api/leaders?stat='+sel.value+'&season='+$('#ld-season').value);const lbl=sel.selectedOptions[0].text;
+ $('#ldlist').innerHTML=r.rows.map((x,i)=>'<div class="row" data-id="'+x.espn_id+'"><div><div class="nm">'+(i+1)+'. '+x.name+'</div><div class="sub">'+x.g+' g · '+x.min+' min/g</div></div><div class="sub">'+x.v+' '+lbl+'</div></div>').join('')||'<div class="sub" style="padding:12px">no rows</div>'}
+ $('#ld-btn').onclick=()=>loadLeaders();
+ $('#ldlist').onclick=e=>{const r=e.target.closest('.row');if(r)showPlayer(r.dataset.id)};
+async function showPlayer(id){const d=await api('/api/player/'+id);$('#pdetail').innerHTML=renderPlayer(d,true);$('#pdetail').scrollIntoView({behavior:'smooth'})}
+async function projectPlayer(id){const d=await api('/api/player/'+id);const p=await api('/api/prob/'+id).catch(()=>null);$('#pjdetail').innerHTML='<div class="card"><div class="back" onclick="document.getElementById(\'pjdetail\').innerHTML=\'\'">← clear</div><div class="nm" style="font-size:20px;font-weight:800">'+d.name+'</div>'+(p?probTable(p):'')+projTable(d)+'<div class="note">Probability layer, walk-forward validated: learned mean for pts/reb/ast, plain roll20 for fg3m (the booster fitted shot noise), spread is the player\'s own shrunk toward their archetype. Opponent adjustments were tested and rejected — they added 0.1%.</div></div>'}
+function probTable(p){let h='<h3>next game · over/under</h3>';for(const s of ['pts','reb','ast','fg3m']){const st=p.stats[s];if(!st)continue;h+='<div style="margin:12px 0 4px;font-weight:700">'+s+' · proj '+st.proj+' ±'+st.sd+'</div><div class="chips">';for(const L of st.lines){h+='<span class="chip">'+L.line+' · '+(L.p*100).toFixed(0)+'%</span>'}h+='</div>'}return h}
+function projTable(d){const p=d.projection;if(!Object.keys(p).length)return'<div class="note">no games in store</div>';let h='<table><tr><th>stat</th><th>proj</th><th>±sd</th><th>n</th></tr>';for(const s of STATS){if(!p[s])continue;h+='<tr><td>'+s+'</td><td>'+p[s].mean+'</td><td>'+p[s].std+'</td><td>'+p[s].n+'</td></tr>'}return h+'</table>'}
+function renderPlayer(d,withProj){let h='<div class="back" onclick="document.getElementById(\'pdetail\').innerHTML=\'\'">← back to search</div><div class="card">';h+='<div style="display:flex;justify-content:space-between;align-items:center"><div class="nm" style="font-size:20px;font-weight:800">'+d.name+'</div>';if(d.arch!=null)h+='<span class="badge" style="background:'+PAL[d.arch%12]+'30;color:'+PAL[d.arch%12]+'">arch '+d.arch+'</span>';h+='</div>';
+if(d.seasons.length){h+='<div class="scroll"><table><tr><th>season</th><th>g</th><th>min</th><th>pts</th><th>reb</th><th>ast</th><th>3pm</th></tr>';for(const s of d.seasons){h+='<tr><td>'+s.season+'</td><td>'+s.g+'</td><td>'+s.min+'</td><td>'+s.pts+'</td><td>'+s.reb+'</td><td>'+s.ast+'</td><td>'+s.fg3m+'</td></tr>'}h+='</table></div>'}
+if(d.per36){h+='<h3>per-36 · '+d.latest_season+'</h3><div class="chips">';for(const[k,v]of Object.entries(d.per36))h+='<span class="chip">'+k+' '+v+'</span>';h+='</div>'}
+h+='<h3>form</h3>'+spark(d.spark);
+if(d.recent.length){h+='<h3>last '+d.recent.length+' games</h3><div class="scroll"><table><tr><th>date</th><th>opp</th><th>min</th><th>pts</th><th>reb</th><th>ast</th><th>3pm</th></tr>';for(const g of d.recent){h+='<tr><td>'+g.date+'</td><td>'+(g.ha==='H'?'vs ':'@ ')+g.opp+'</td><td>'+g.min+'</td><td>'+g.pts+'</td><td>'+g.reb+'</td><td>'+g.ast+'</td><td>'+g.fg3m+'</td></tr>'}h+='</table></div>'}
+if(withProj){h+='<h3>roll20 projection</h3>'+projTable(d)}
+h+='</div>';return h}
+async function loadArch(){try{const s=await api('/api/state');$('#hdr-sub').textContent='k='+s.k+' · '+s.players+' players · '+s.games+' games'}catch(e){}
+const a=await api('/api/archetypes');
+$('#arch-grid').innerHTML=a.clusters.map(c=>{const cen=['pts36','reb36','ast36','usg','ts','ftr','ast_tov','pm36'].map(f=>'<span class="chip">'+f+' '+c.centroid[f]+'</span>').join('');const top=c.top.map(m=>'<span class="chip">'+m.name+'</span>').join('');return '<div class="card archcard" style="--ac:'+PAL[c.arch%12]+'"><div class="nm">'+(c.name||'cluster '+c.arch)+'</div><div class="sub">arch '+c.arch+' · '+c.size+' players'+(c.desc?' · '+c.desc:'')+'</div><div class="sub" style="margin:6px 0 4px">top members</div><div class="chips">'+top+'</div><div class="sub" style="margin:8px 0 4px">centroid</div><div class="chips">'+cen+'</div></div>'}).join('');
+loadQuality();loadScatter(a.k);loadPreview(a.k);const ks=document.getElementById('k-sel');if(ks)ks.value=String(a.k)}
+async function loadQuality(){try{const q=await api('/api/archetypes/quality');drawQuality(q)}catch(e){$('#quality-chart').innerHTML='';$('#quality-note').textContent='no scan in meta yet — press auto-optimize'}}
+function drawQuality(q){const NS='http://www.w3.org/2000/svg';const W=340,H=180,padL=26,padB=22,padT=10,padR=8;const ks=q.km.map(r=>r.k);const n=ks.length;
+ const sil=q.km.map(r=>r.silhouette);const bics=q.gmm.map(r=>r.bic);const bmin=Math.min(...bics),bmax=Math.max(...bics);const brg=(bmax-bmin)||1;const bnorm=bics.map(b=>(bmax-b)/brg);
+ const smax=Math.max(...sil)||1;
+ const X=i=>padL+i*((W-padL-padR)/((n-1)||1));const Y=v=>padT+(1-v)*(H-padT-padB);
+ let s='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto">';
+ for(let g=0;g<=4;g++){const y=padT+g*((H-padT-padB)/4);s+='<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="#232b3a" stroke-width="1"/>'}
+ s+='<polyline fill="none" stroke="#38bdf8" stroke-width="2.5" points="'+sil.map((v,i)=>X(i)+','+Y(v/smax)).join(' ')+'"/>';
+ s+='<polyline fill="none" stroke="#4ade80" stroke-width="2.5" stroke-dasharray="5 3" points="'+bnorm.map((v,i)=>X(i)+','+Y(v)).join(' ')+'"/>';
+ sil.forEach((v,i)=>{s+='<circle cx="'+X(i)+'" cy="'+Y(v/smax)+'" r="3" fill="#38bdf8"/><title>k='+ks[i]+' silhouette '+v+'</title></circle>'});
+ bnorm.forEach((v,i)=>{s+='<circle cx="'+X(i)+'" cy="'+Y(v)+'" r="3" fill="#4ade80"/><title>k='+ks[i]+' BIC '+bics[i]+'</title></circle>'});
+ ks.forEach((k,i)=>{if(k%2===1||n<=8)s+='<text x="'+X(i)+'" y="'+(H-6)+'" fill="#98a2b3" font-size="9" text-anchor="middle">'+k+'</text>'});
+ const ai=ks.indexOf(q.current_k);
+ if(ai>=0)s+='<line x1="'+X(ai)+'" y1="'+padT+'" x2="'+X(ai)+'" x2="'+X(ai)+'" y2="'+(H-18)+'" stroke="#f59e0b" stroke-dasharray="2 3" stroke-width="1.5"><title>current k='+q.current_k+'</title></line>';
+ s+='</svg>';
+ $('#quality-chart').innerHTML=s;
+ const meth = q.method || 'unassigned'; $('#quality-note').innerHTML='<span style="color:#38bdf8">solid</span> k-means silhouette (higher = tighter) · <span style="color:#4ade80">dashed</span> GMM BIC, inverted (higher = better fit, complexity-penalised) · orange = current k<br>auto pick: <b>k='+q.auto_k+'</b> · method '+meth+' · current k='+q.current_k;}
+async function loadScatter(k){const s=await api('/api/archetypes/scatter');const svg=$('#scatter');svg.innerHTML='';const NS='http://www.w3.org/2000/svg';for(const p of s.points){const c=document.createElementNS(NS,'circle');c.setAttribute('cx',p.x);c.setAttribute('cy',p.y);c.setAttribute('r',0.075);c.setAttribute('fill',PAL[(p.arch==null?0:p.arch)%12]);c.setAttribute('opacity','.85');c.onclick=()=>{$('#scatter-tip').textContent=p.name+' · arch '+p.arch+' · '+Math.round(p.minutes)+' min';};svg.appendChild(c)}
+$('#scatter-tip').textContent=s.points.length+' players · tap a dot · axes explain '+(Math.round((s.var[0]+s.var[1])*100))+'% of variance'}
+$('#btn-scan').onclick=async()=>{const b=$('#btn-scan');b.disabled=true;b.textContent='scanning…';const dc=document.getElementById('deep-chk');const deep=!!(dc&&dc.checked);try{const r=await api('/api/archetypes/scan'+(deep?'?stab=1':''),{method:'POST'});let h='<div class="card"><table><tr><th>k</th><th>sil</th><th>CH</th><th>DB</th><th>ARI</th></tr>';for(const row of r.rows){h+='<tr><td>'+row.k+'</td><td>'+row.silhouette+'</td><td>'+row.ch+'</td><td>'+row.db+'</td><td>'+row.ari+'</td></tr>'}h+='</table><h3>GMM lens</h3><table><tr><th>k</th><th>BIC</th><th>ICL</th>'+(deep?'<th>stab</th>':'')+'</tr>';for(const row of r.gmm){h+='<tr><td>'+row.k+'</td><td>'+row.bic+'</td><td>'+row.icl+'</td>'+(deep?'<td>'+row.stab+'</td>':'')+'</tr>'}h+='</table><div class="note">silhouette, CH and DB measure partition geometry — on 25 standardized features the k-means-shaped ones drift monotonically toward fewer clusters, which is bias not accuracy. BIC and ICL bottom at the same k, and a small ICL-BIC gap means crisp assignment rather than fuzzy mush. stab (opt-in, slow) is bootstrap ARI: how much the partition survives resampling — it favours simpler models by construction, so read it as sturdier, not truer.</div></div>';$('#scan-out').innerHTML=h}catch(e){$('#scan-out').innerHTML='<div class="card">'+e.message+'</div>'}b.disabled=false;b.textContent='run k-scan'};
+$('#btn-assign').onclick=async()=>{const b=$('#btn-assign');b.disabled=true;try{await api('/api/archetypes/assign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({k:parseInt($('#k-sel').value,10)})});await loadArch()}catch(e){alert(e.message)}b.disabled=false};
+let PK=null;
+async function loadPreview(k){k=Math.min(14,Math.max(2,k||10));PK=k;$('#k-prev-k').textContent=k;
+ $('#k-preview-out').innerHTML='<div class="sub" style="padding:8px 0">fitting k='+k+'…</div>';
+ try{const p=await api('/api/archetypes/preview?k='+k);
+  $('#k-preview-out').innerHTML=p.clusters.map(c=>'<div style="border-top:1px solid #232b3a;padding:8px 0"><div class="nm">'+c.name+' · '+c.size+' players</div><div class="sub">'+c.desc+'</div><div class="chips" style="margin-top:6px">'+c.top.map(n=>'<span class="chip">'+n+'</span>').join('')+'</div></div>').join('');
+ }catch(e){$('#k-preview-out').innerHTML='<div class="sub" style="padding:8px 0">'+e.message+'</div>'}}
+$('#k-down').onclick=()=>loadPreview((PK||10)-1);
+$('#k-up').onclick=()=>loadPreview((PK||10)+1);
+$('#k-apply').onclick=async()=>{const b=$('#k-apply');b.disabled=true;b.textContent='applying…';try{await api('/api/archetypes/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({k:PK})});await loadArch();await loadQuality();}catch(e){alert(e.message)}b.disabled=false;b.textContent='apply this k'};
+$('#btn-auto').onclick=async()=>{const b=$('#btn-auto');b.disabled=true;b.textContent='optimizing…';try{const r=await api('/api/archetypes/optimize',{method:'POST'});await loadArch();$('#hdr-sub').textContent='k='+r.k+' · optimized';}catch(e){alert(e.message)}b.disabled=false;b.textContent='auto-optimize'};
+async function loadModel(){const s=await api('/api/state');let h='<div class="card"><div class="nm">data coverage</div><table>';
+h+='<tr><td>players</td><td>'+s.players+'</td></tr><tr><td>player-games (official)</td><td>'+s.games+'</td></tr><tr><td>team-games</td><td>'+s.team_games+'</td></tr><tr><td>seasons</td><td>'+s.seasons.join(', ')+'</td></tr><tr><td>current k</td><td>'+(s.k==null?'unassigned':s.k)+'</td></tr></table></div>';
+h+='<div class="card"><div class="nm">baseline yardstick (MAE)</div><div class="sub">'+s.baseline.label+'</div><table>';for(const[k,v]of Object.entries(s.baseline)){if(k==='label')continue;h+='<tr><td>'+k+'</td><td>'+v+'</td></tr>'}h+='</table><div class="note">any fancier model must beat these numbers league-wide, or it is noise.</div></div>';
+h+='<div class="card"><div class="nm">roadmap</div><div class="note">phase 1 (done): data layer (ESPN + official via bridge), walk-forward baseline, archetypes, auto-k.<br>phase 2 (done): learned mean + per-player variance, live over/under probabilities on the Project tab. Pooled Brier 0.1711 vs 0.1773 naive.<br>phase 2b (rejected on evidence): opponent and opponent \u00d7 archetype adjustments. Worth ~0.1% and the archetype form lost to the plain one over 38,527 walk-forward games. See README.<br>phase 3: rest days, schedule and injury context \u2014 the real remaining gap.</div></div>';
+$('#model-info').innerHTML=h}
+show('players');
+(async()=>{try{const s=await api('/api/state');$('#hdr-sub').textContent='k='+s.k+' · '+s.players+' players · '+s.games+' games';await loadLeaders()}catch(e){$('#hdr-sub').textContent='API offline'}})();
+</script>
+</body>
+</html>
